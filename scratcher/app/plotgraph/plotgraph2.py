@@ -114,6 +114,15 @@ def RQ12(data_csv, output_dir):
                 else:
                     score_changes[column]['unchange'].append((score_before, score_remix, score_after))
 
+
+    # 各項目ごとに上がった、下がった、変わらなかった数を出力
+    for column in columns_to_compare:
+        print(f"Summary for {column}:")
+        print(f"  Up: {len(score_changes[column]['up'])}")
+        print(f"  Down: {len(score_changes[column]['down'])}")
+        print(f"  Unchanged: {len(score_changes[column]['unchange'])}")
+        print("="*50)
+        
     # ヒートマップを描画する関数
     def plot_heatmap(data, title, output_dir, filename):
         data = data.astype(int)
