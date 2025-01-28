@@ -121,7 +121,7 @@ def RQ12(data_csv, output_dir):
         sns.heatmap(data, annot=True, fmt="d", cmap="Blues", cbar=False)
         plt.title(title, fontsize=16)
         plt.xlabel("Remix Score", fontsize=12)  # 横軸のラベルを英語に変更
-        plt.ylabel("Pre Remix Score", fontsize=12)  # 縦軸のラベルを英語に変更
+        plt.ylabel("Pre Original Score", fontsize=12)  # 縦軸のラベルを英語に変更
         
         # 出力先ディレクトリが存在しない場合は作成
         os.makedirs(output_dir, exist_ok=True)
