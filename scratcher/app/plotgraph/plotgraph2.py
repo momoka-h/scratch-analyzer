@@ -82,7 +82,7 @@ def RQ11(data_csv, output_dir):## リミックス前，リミックス，リミ�
 
     print(f"リミックス前、リミックス、リミックス後のペアが揃ったデータを保存しました: {output_file}")
 
-def RQ122(data_csv, output_dir):## リミックス前，リミックス，リミックス後のヒートマップ
+def RQ121(data_csv, output_dir):## リミックス前，リミックス，リミックス後のヒートマップ
     # データの読み込み
     data = pd.read_csv(data_csv)
 
@@ -172,7 +172,7 @@ def RQ122(data_csv, output_dir):## リミックス前，リミックス，リミ
                 filename = f"{column}_{change_type}.png"
                 plot_heatmap(heatmap_data, f"{column} - {change_type}", output_dir, filename)
 
-def RQ12(data_csv, remixp_csv, output_dir):## リミックス前，リミックス元，リミックス後のヒートマップ
+def RQ122(data_csv, remixp_csv, output_dir):## リミックス前，リミックス元，リミックス後のヒートマップ
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -242,6 +242,27 @@ def RQ12(data_csv, remixp_csv, output_dir):## リミックス前，リミック�
         output_path = os.path.join(output_dir, filename)
         plt.savefig(output_path)
         plt.close()
+    
+    # **ヒートマップを描画する関数（縦軸のデータ数で重み付け）**
+    def plot_weighted_heatmap(data, title, output_dir, filename):
+        # 縦軸（リミックス前スコア）の出現回数を取得
+        row_sums = np.sum(data, axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1  # 0で割るのを防ぐ
+
+        # 縦軸のデータ数で正規化（重み付け）
+        weighted_data = data / row_sums  
+
+        # ヒートマップ描画
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(weighted_data, annot=True, fmt=".2f", cmap="Blues", cbar=True)
+        plt.title(title, fontsize=16)
+        plt.xlabel("Remix Source Score", fontsize=12)
+        plt.ylabel("Pre Original Score", fontsize=12)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, filename)
+        plt.savefig(output_path)
+        plt.close()
 
     for column in columns_to_compare:
         for change_type in ['up', 'down', 'unchange']:
@@ -264,9 +285,13 @@ def RQ12(data_csv, remixp_csv, output_dir):## リミックス前，リミック�
 
                     heatmap_data[before_index, remix_source_index] += 1
 
-                # ヒートマップのファイル名を作成
-                filename = f"{column}_{change_type}.png"
-                plot_heatmap(heatmap_data, f"{column} - {change_type}", output_dir, filename)
+                # # ヒートマップのファイル名を作成
+                # filename = f"{column}_{change_type}.png"
+                # plot_heatmap(heatmap_data, f"{column} - {change_type}", output_dir, filename)
+
+                # **重み付きヒートマップの描画**
+                filename = f"{column}_{change_type}_weighted.png"
+                plot_weighted_heatmap(heatmap_data, f"{column} - {change_type} (Weighted)", output_dir, filename)
 
     # 各項目ごとに上がった、下がった、変わらなかった数を出力
     for column in columns_to_compare:
@@ -277,12 +302,11 @@ def RQ12(data_csv, remixp_csv, output_dir):## リミックス前，リミック�
         print("="*50)
 
 
-
 # 実行例
 data_csv = '../../dataset/plotdata/dataset/data1.csv'
 remixp_csv = '../../dataset/plotdata/dataset/remixparent_data.csv'
 output_dir = '../../dataset/plotdata/RQ1'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
-RQ12(rq1data_csv, remixp_csv, output_dir)
+RQ122(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
