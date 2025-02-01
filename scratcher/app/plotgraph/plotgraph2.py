@@ -373,6 +373,13 @@ def RQ122_boxplot(data_csv, remixp_csv, output_dir):
     # データフレームに変換
     df_boxplot = pd.DataFrame(boxplot_data)
 
+    palette = {
+        "Up": (0.6, 0.8, 1, 0.6),        # **薄い青 (淡い水色, 透明度 60%)**
+        "Down": (1, 0.6, 0.6, 0.6),      # **薄い赤 (淡いピンク, 透明度 60%)**
+        "Unchanged": (0.8, 0.8, 0.8, 0.6) # **薄いグレー (透明度 60%)**
+    }
+
+
     # **箱ひげ図を描画する関数**
     def plot_boxplot(df, column, output_dir):
         plt.figure(figsize=(12, 6))
@@ -381,11 +388,11 @@ def RQ122_boxplot(data_csv, remixp_csv, output_dir):
             x="Remix Before Score", 
             y="Score Difference", 
             hue="Change Type", 
-            palette = {
-                "Up": (0.6, 0.8, 1, 0.6),        # **薄い青 (淡い水色, 透明度 60%)**
-                "Down": (1, 0.6, 0.6, 0.6),      # **薄い赤 (淡いピンク, 透明度 60%)**
-                "Unchanged": (0.8, 0.8, 0.8, 0.6) # **薄いグレー (透明度 60%)**}
-            }
+            palette=palette,
+            boxprops={"edgecolor": "black"},     # **箱の枠線を黒に**
+            medianprops={"color": "black"},      # **中央値の線を黒に**
+            whiskerprops={"color": "black"},     # **ひげ（上下の線）を黒に**
+            capprops={"color": "black"}          # **ひげの端（キャップ）を黒に**
         )
         plt.axhline(0, color="black", linestyle="--")  # 基準線
         plt.title(f"Score Difference: Remix Source - Remix Before ({column})", fontsize=14)
