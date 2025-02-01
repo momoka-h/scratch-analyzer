@@ -301,6 +301,116 @@ def RQ122(data_csv, remixp_csv, output_dir):## リミックス前，リミック
         print(f"  Unchanged: {len(score_changes[column]['unchange'])}")
         print("="*50)
 
+def RQ122_boxplot(data_csv, remixp_csv, output_dir):
+    # データの読み込み
+    data = pd.read_csv(data_csv)
+    remixp_data = pd.read_csv(remixp_csv)
+
+    # 列名を英語に変換
+    data = translate_columns(data, column_translation)
+    remixp_data = translate_columns(remixp_data, column_translation)
+
+    # リミックス元作品のデータを辞書化
+    remixp_dict = remixp_data.set_index("作品ID").to_dict(orient="index")
+
+    # リミックス前、リミックス、リミックス後のデータを分類
+    remix_before = data[data["カテゴリ"] == "リミックス前"]
+    remix = data[data["カテゴリ"] == "リミックス"]
+    remix_after = data[data["カテゴリ"] == "リミックス後"]
+
+    # 比較する項目
+    columns_to_compare = ["Logical thinking", "Flow control", "Synchronization", "Abstraction and problem decomposition", 
+                          "Data Representation", "User Interactivity", "Parallelism", "CT Score"]
+
+    # 箱ひげ図用のデータリスト
+    boxplot_data = []
+
+    # 各項目のスコア変化のカウントを保存する辞書
+    score_changes = {column: {"Up": 0, "Down": 0, "Unchanged": 0} for column in columns_to_compare}
+
+
+    # データをペアリングし、スコア変化を計算
+    for i in range(len(remix_before)):
+        before = remix_before.iloc[i]
+        rem = remix.iloc[i]
+        after = remix_after.iloc[i]
+
+        remix_source_id = rem["リミックス元ID"]
+
+        # リミックス元IDに対応する作品が remixp_data にあるか確認
+        if pd.notna(remix_source_id) and remix_source_id in remixp_dict:
+            remix_source = remixp_dict[remix_source_id]  # リミックス元作品のデータ
+
+            # 同じ作者で比較
+            if before["作者ID"] == rem["作者ID"] == after["作者ID"]:
+                for column in columns_to_compare:
+                    score_before = before[column]  # リミックス前のスコア
+                    remix_source_score = remix_source[column]  # リミックス元のスコア
+                    score_after = after[column]  # リミックス後のスコア
+                    
+                    # **縦軸の値（リミックス前とリミックス元のスコア差）**
+                    score_diff = remix_source_score  - score_before
+
+                    # **スコアの変化（リミックス前 vs リミックス後）**
+                    if score_after > score_before:
+                        change_type = "Up"
+                    elif score_after < score_before:
+                        change_type = "Down"
+                    else:
+                        change_type = "Unchanged"
+
+                    # 変化のカウントを増やす
+                    score_changes[column][change_type] += 1
+
+                    # データ追加
+                    boxplot_data.append({
+                        "Remix Before Score": score_before,
+                        "Score Difference": score_diff,
+                        "Change Type": change_type,
+                        "Column": column
+                    })
+
+    # データフレームに変換
+    df_boxplot = pd.DataFrame(boxplot_data)
+
+    # **箱ひげ図を描画する関数**
+    def plot_boxplot(df, column, output_dir):
+        plt.figure(figsize=(12, 6))
+        sns.boxplot(
+            data=df[df["Column"] == column], 
+            x="Remix Before Score", 
+            y="Score Difference", 
+            hue="Change Type", 
+            palette = {
+                "Up": (0.6, 0.8, 1, 0.6),        # **薄い青 (淡い水色, 透明度 60%)**
+                "Down": (1, 0.6, 0.6, 0.6),      # **薄い赤 (淡いピンク, 透明度 60%)**
+                "Unchanged": (0.8, 0.8, 0.8, 0.6) # **薄いグレー (透明度 60%)**}
+            }
+        )
+        plt.axhline(0, color="black", linestyle="--")  # 基準線
+        plt.title(f"Score Difference: Remix Source - Remix Before ({column})", fontsize=14)
+        plt.xlabel("Remix Before Score", fontsize=12)
+        plt.ylabel("Score Difference (Before - Source)", fontsize=12)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        plt.legend(title="Change Type")
+        output_path = os.path.join(output_dir, f"{column}_boxplot.png")
+        plt.savefig(output_path)
+        plt.close()
+
+    # 各スキル項目ごとに箱ひげ図を作成
+    for column in columns_to_compare:
+        plot_boxplot(df_boxplot, column, output_dir)
+    
+    print("Boxplots saved in:", output_dir)
+
+    # **各項目ごとのスコア変化を出力**
+    for column in columns_to_compare:
+        print(f"Summary for {column}:")
+        print(f"  Up: {score_changes[column]['Up']}")
+        print(f"  Down: {score_changes[column]['Down']}")
+        print(f"  Unchanged: {score_changes[column]['Unchanged']}")
+        print("=" * 50)
 
 # 実行例
 data_csv = '../../dataset/plotdata/dataset/data1.csv'
@@ -308,5 +418,5 @@ remixp_csv = '../../dataset/plotdata/dataset/remixparent_data.csv'
 output_dir = '../../dataset/plotdata/RQ1'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
-RQ122(rq1data_csv, remixp_csv, output_dir)
+RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
