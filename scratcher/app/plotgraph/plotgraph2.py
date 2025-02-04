@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import csv
+import scipy.stats as stats
+from numpy import mean, std
+import scipy.stats as stats
 
 # 日本語の項目名と英語の対応表
 column_translation = {
@@ -301,7 +304,7 @@ def RQ122(data_csv, remixp_csv, output_dir):## リミックス前，リミック
         print(f"  Unchanged: {len(score_changes[column]['unchange'])}")
         print("="*50)
 
-def RQ122_boxplot(data_csv, remixp_csv, output_dir):
+def RQ122_boxplot(data_csv, remixp_csv, output_dir):## 縦軸リミックス前とリミックス元のスコア差，横軸リミックス前でリミックス前と後で上がったかどうかの箱ひげ図
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -419,11 +422,259 @@ def RQ122_boxplot(data_csv, remixp_csv, output_dir):
         print(f"  Unchanged: {score_changes[column]['Unchanged']}")
         print("=" * 50)
 
+def analyze_scratch_data(csv_file):## データのユーザ数，リミックス作品数，オリジナル作品数をカウント
+    # CSVファイルを読み込む
+    df = pd.read_csv(csv_file)
+    
+    # リミックス作品数（リミックス元IDがあるもの）
+    remix_count = df[df["リミックス元ID"].notna() & (df["リミックス元ID"] != "")].shape[0]
+    
+    # ユーザ数（ユニークな作者IDの数）
+    user_count = df["作者ID"].nunique()
+    
+    # オリジナル作品数（リミックス元IDがないものの数）
+    original_count = df[df["リミックス元ID"].isna() | (df["リミックス元ID"] == "")].shape[0]
+    
+    return remix_count, user_count, original_count
+
+def RQ122_T(data_csv, remixp_csv):## T検定
+    # データの読み込み
+    data = pd.read_csv(data_csv)
+    remixp_data = pd.read_csv(remixp_csv)
+
+    # 列名を英語に変換
+    data = translate_columns(data, column_translation)
+    remixp_data = translate_columns(remixp_data, column_translation)
+
+    # リミックス元作品のデータを辞書化
+    remixp_dict = remixp_data.set_index("作品ID").to_dict(orient="index")
+
+    # リミックス前、リミックス、リミックス後のデータを分類
+    remix_before = data[data["カテゴリ"] == "リミックス前"]
+    remix = data[data["カテゴリ"] == "リミックス"]
+    remix_after = data[data["カテゴリ"] == "リミックス後"]
+
+    # 比較する項目
+    columns_to_compare = ["Logical thinking", "Flow control", "Synchronization", "Abstraction and problem decomposition", 
+                          "Data Representation", "User Interactivity", "Parallelism", "CT Score"]
+
+    # 箱ひげ図用のデータリスト
+    boxplot_data = []
+
+    # 各項目のスコア変化のカウントを保存する辞書
+    score_changes = {column: {"Up": 0, "Down": 0, "Unchanged": 0} for column in columns_to_compare}
+
+
+    # データをペアリングし、スコア変化を計算
+    for i in range(len(remix_before)):
+        before = remix_before.iloc[i]
+        rem = remix.iloc[i]
+        after = remix_after.iloc[i]
+
+        remix_source_id = rem["リミックス元ID"]
+
+        # リミックス元IDに対応する作品が remixp_data にあるか確認
+        if pd.notna(remix_source_id) and remix_source_id in remixp_dict:
+            remix_source = remixp_dict[remix_source_id]  # リミックス元作品のデータ
+
+            # 同じ作者で比較
+            if before["作者ID"] == rem["作者ID"] == after["作者ID"]:
+                for column in columns_to_compare:
+                    score_before = before[column]  # リミックス前のスコア
+                    remix_source_score = remix_source[column]  # リミックス元のスコア
+                    score_after = after[column]  # リミックス後のスコア
+                    
+                    # **縦軸の値（リミックス前とリミックス元のスコア差）**
+                    score_diff = remix_source_score  - score_before
+
+                    # **スコアの変化（リミックス前 vs リミックス後）**
+                    if score_after > score_before:
+                        change_type = "Up"
+                    elif score_after < score_before:
+                        change_type = "Down"
+                    else:
+                        change_type = "Unchanged"
+
+                    # 変化のカウントを増やす
+                    score_changes[column][change_type] += 1
+
+                    # データ追加
+                    boxplot_data.append({
+                        "Remix Before Score": score_before,
+                        "Score Difference": score_diff,
+                        "Change Type": change_type,
+                        "Column": column
+                    })
+
+    # データフレームに変換
+    df_boxplot = pd.DataFrame(boxplot_data)
+
+
+    def perform_t_tests(df, column):
+        up_scores = df[(df["Column"] == column) & (df["Change Type"] == "Up")]["Score Difference"]
+        down_scores = df[(df["Column"] == column) & (df["Change Type"] == "Down")]["Score Difference"]
+        unchanged_scores = df[(df["Column"] == column) & (df["Change Type"] == "Unchanged")]["Score Difference"]
+
+        print(f"\nT-Tests for {column}:")
+        
+        # Up vs Down
+        if len(up_scores) > 1 and len(down_scores) > 1:
+            t_stat, p_value = stats.ttest_ind(up_scores, down_scores, equal_var=False)
+            print(f"  Up vs Down: t = {t_stat:.3f}, p = {p_value:.5f}")
+
+        # Up vs Unchanged
+        if len(up_scores) > 1 and len(unchanged_scores) > 1:
+            t_stat, p_value = stats.ttest_ind(up_scores, unchanged_scores, equal_var=False)
+            print(f"  Up vs Unchanged: t = {t_stat:.3f}, p = {p_value:.5f}")
+
+        # Down vs Unchanged
+        if len(down_scores) > 1 and len(unchanged_scores) > 1:
+            t_stat, p_value = stats.ttest_ind(down_scores, unchanged_scores, equal_var=False)
+            print(f"  Down vs Unchanged: t = {t_stat:.3f}, p = {p_value:.5f}")
+
+        # ANOVA (3グループ比較)
+        f_stat, p_value = stats.f_oneway(up_scores, down_scores)
+        print(f"ANOVA結果（Up vs Down）: F = {f_stat:.3f}, p = {p_value:.5f}")
+        eta_squared = f_stat / (f_stat + (len(up_scores) + len(down_scores) - 2))
+        print(f"効果量 η² (Eta Squared): {eta_squared:.5f}")  # 平均を取らずそのまま出力
+
+
+
+        print("Up count:", len(up_scores))
+        print("Down count:", len(down_scores))
+        print("Unchanged count:", len(unchanged_scores))
+
+
+
+    # 各スキル項目ごとに箱ひげ図を作成
+    for column in columns_to_compare:
+        perform_t_tests(df_boxplot, column)
+
+
+    # # **各項目ごとのスコア変化を出力**
+    # for column in columns_to_compare:
+    #     print(f"Summary for {column}:")
+    #     print(f"  Up: {score_changes[column]['Up']}")
+    #     print(f"  Down: {score_changes[column]['Down']}")
+    #     print(f"  Unchanged: {score_changes[column]['Unchanged']}")
+    #     print("=" * 50)
+
+def RQ122_U(data_csv, remixp_csv):## U検定
+    # データの読み込み
+    data = pd.read_csv(data_csv)
+    remixp_data = pd.read_csv(remixp_csv)
+
+    # 列名を英語に変換
+    data = translate_columns(data, column_translation)
+    remixp_data = translate_columns(remixp_data, column_translation)
+
+    # リミックス元作品のデータを辞書化
+    remixp_dict = remixp_data.set_index("作品ID").to_dict(orient="index")
+
+    # リミックス前、リミックス、リミックス後のデータを分類
+    remix_before = data[data["カテゴリ"] == "リミックス前"]
+    remix = data[data["カテゴリ"] == "リミックス"]
+    remix_after = data[data["カテゴリ"] == "リミックス後"]
+
+    # 比較する項目
+    columns_to_compare = ["Logical thinking", "Flow control", "Synchronization", "Abstraction and problem decomposition", 
+                          "Data Representation", "User Interactivity", "Parallelism", "CT Score"]
+
+    # 箱ひげ図用のデータリスト
+    boxplot_data = []
+
+    # 各項目のスコア変化のカウントを保存する辞書
+    score_changes = {column: {"Up": 0, "Down": 0, "Unchanged": 0} for column in columns_to_compare}
+
+
+    # データをペアリングし、スコア変化を計算
+    for i in range(len(remix_before)):
+        before = remix_before.iloc[i]
+        rem = remix.iloc[i]
+        after = remix_after.iloc[i]
+
+        remix_source_id = rem["リミックス元ID"]
+
+        # リミックス元IDに対応する作品が remixp_data にあるか確認
+        if pd.notna(remix_source_id) and remix_source_id in remixp_dict:
+            remix_source = remixp_dict[remix_source_id]  # リミックス元作品のデータ
+
+            # 同じ作者で比較
+            if before["作者ID"] == rem["作者ID"] == after["作者ID"]:
+                for column in columns_to_compare:
+                    score_before = before[column]  # リミックス前のスコア
+                    remix_source_score = remix_source[column]  # リミックス元のスコア
+                    score_after = after[column]  # リミックス後のスコア
+                    
+                    # **縦軸の値（リミックス前とリミックス元のスコア差）**
+                    score_diff = remix_source_score  - score_before
+
+                    # **スコアの変化（リミックス前 vs リミックス後）**
+                    if score_after > score_before:
+                        change_type = "Up"
+                    elif score_after < score_before:
+                        change_type = "Down"
+                    else:
+                        change_type = "Unchanged"
+
+                    # 変化のカウントを増やす
+                    score_changes[column][change_type] += 1
+
+                    # データ追加
+                    boxplot_data.append({
+                        "Remix Before Score": score_before,
+                        "Score Difference": score_diff,
+                        "Change Type": change_type,
+                        "Column": column
+                    })
+
+    # データフレームに変換
+    df_boxplot = pd.DataFrame(boxplot_data)
+
+    def Ukentei(df, column):
+        up_scores = df[(df["Column"] == column) & (df["Change Type"] == "Up")]["Score Difference"]
+        down_scores = df[(df["Column"] == column) & (df["Change Type"] == "Down")]["Score Difference"]
+        unchanged_scores = df[(df["Column"] == column) & (df["Change Type"] == "Unchanged")]["Score Difference"]
+        # Mann-Whitney U検定
+        stat, p_value = stats.mannwhitneyu(up_scores, down_scores, alternative='two-sided')
+        print(f"\nMann-Whitney-U for {column}:")
+        # 結果の表示
+        print(f"Mann-Whitney U検定の統計量: {stat}")
+        print(f"p値: {p_value}")
+
+        print("Up count:", len(up_scores))
+        print("Down count:", len(down_scores))
+        print("Unchanged count:", len(unchanged_scores))
+
+
+
+    # 各スキル項目ごとに箱ひげ図を作成
+    for column in columns_to_compare:
+        Ukentei(df_boxplot, column)
+
+
+    # # **各項目ごとのスコア変化を出力**
+    # for column in columns_to_compare:
+    #     print(f"Summary for {column}:")
+    #     print(f"  Up: {score_changes[column]['Up']}")
+    #     print(f"  Down: {score_changes[column]['Down']}")
+    #     print(f"  Unchanged: {score_changes[column]['Unchanged']}")
+    #     print("=" * 50)
+
+
 # 実行例
 data_csv = '../../dataset/plotdata/dataset/data1.csv'
 remixp_csv = '../../dataset/plotdata/dataset/remixparent_data.csv'
 output_dir = '../../dataset/plotdata/RQ1'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
-RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
+# RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
+
+# remix_count, user_count, original_count = analyze_scratch_data(data_csv)
+# print(f"リミックス作品数: {remix_count}")
+# print(f"ユーザ数: {user_count}")
+# print(f"オリジナル作品数: {original_count}")
+# print(count_rows_in_csv(remixp_csv))
+
+RQ122_U(rq1data_csv, remixp_csv)
