@@ -802,16 +802,129 @@ def RQ122_boxplot_histgram(data_csv, remixp_csv, output_dir):
             print(f"  Score {score}: Up={score_changes[column][score]['Up']}, Down={score_changes[column][score]['Down']}, Unchanged={score_changes[column][score]['Unchanged']}")
         print("=" * 50)
 
+def RQ2_boxplot_histgram(data_csv, remixp_csv, output_dir):
+    # データの読み込み
+    data = pd.read_csv(data_csv)
+    remixp_data = pd.read_csv(remixp_csv)
+
+    data = translate_columns(data, column_translation)
+    remixp_data = translate_columns(remixp_data, column_translation)
+
+    # リミックス元作品のデータを辞書化
+    remixp_dict = remixp_data.set_index("作品ID").to_dict(orient="index")
+
+    # リミックス前、リミックス、リミックス後のデータを分類
+    remix_before = data[data["カテゴリ"] == "リミックス前"]
+    remix = data[data["カテゴリ"] == "リミックス"]
+    remix_after = data[data["カテゴリ"] == "リミックス後"]
+    
+    # 比較する項目
+    columns_to_compare = ["Logical thinking", "Flow control", "Synchronization", "Abstraction and problem decomposition", 
+                          "Data Representation", "User Interactivity", "Parallelism"]
+
+    # カラーパレット
+    palette = {
+        "Up": (0.6, 0.8, 1, 1.0),
+        "Unchanged": (0.8, 0.8, 0.8, 1.0),
+        "Down": (1, 0.6, 0.6, 1.0)
+    }
+
+    # データリスト
+    boxplot_data = []
+    hist_data = {column: {score: {"Up": 0, "Unchanged": 0, "Down": 0} for score in range(1, 6)} for column in columns_to_compare}
+
+    # データをペアリングし、スコア変化を計算
+    for i in range(len(remix_before)):
+        before = remix_before.iloc[i]
+        after = remix_after.iloc[i]
+        remix_source_id = remix.iloc[i]["リミックス元ID"]
+        
+        if pd.notna(remix_source_id) and remix_source_id in remixp_dict:
+            remix_source = remixp_dict[remix_source_id]
+            
+            for column in columns_to_compare:
+                score_before = before[column]
+                score_after = after[column]
+                change_type = "Up" if score_after > score_before else "Down" if score_after < score_before else "Unchanged"
+                
+                ct_score_diff = remix_source["CT Score"] - before["CT Score"]
+                
+                boxplot_data.append({
+                    "Remix Before CT Score": before["CT Score"],
+                    "CT Score Difference": ct_score_diff,
+                    "Column": column,
+                    "Change Type": change_type
+                })
+
+                # hist_dataを動的に更新するよう修正
+                if before["CT Score"] not in hist_data[column]:
+                    hist_data[column][before["CT Score"]] = {"Up": 0, "Unchanged": 0, "Down": 0}
+                hist_data[column][before["CT Score"]][change_type] += 1
+
+    df_boxplot = pd.DataFrame(boxplot_data)
+
+    def plot_boxplot(df, column, output_dir):
+        plt.figure(figsize=(12, 6))
+        sns.boxplot(
+            data=df[df["Column"] == column], 
+            x="Remix Before CT Score", 
+            y="CT Score Difference",
+            hue="Change Type",
+            hue_order=["Up", "Unchanged", "Down"],
+            palette=palette,
+            boxprops={"edgecolor": "black"},
+            medianprops={"color": "black"},
+            whiskerprops={"color": "black"},
+            capprops={"color": "black"}
+        )
+        plt.axhline(0, color="black", linestyle="--")
+        plt.title(f"CT Score Difference: Remix Source - Remix Before ({column})", fontsize=14)
+        plt.xlabel("Remix Before CT Score", fontsize=12)
+        plt.ylabel("CT Score Difference (Source - Before)", fontsize=12)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, f"{column}_ctscore_boxplot.png")
+        plt.savefig(output_path)
+        plt.close()
+
+    def plot_histogram(hist_data, column, output_dir):
+        categories = ["Up", "Unchanged", "Down"]
+        scores = sorted(hist_data[column].keys())
+        values = [[hist_data[column][score][cat] for cat in categories] for score in scores]
+        
+        x_labels = [str(score) for score in scores]
+        x = range(len(scores))
+        width = 0.3
+        
+        plt.figure(figsize=(10, 6))
+        for i, cat in enumerate(categories):
+            plt.bar([p + i * width for p in x], [values[j][i] for j in range(len(scores))], width=width, label=cat, color=palette[cat])
+        
+        plt.xticks([p + width for p in x], x_labels)
+        plt.title(f"Change Distribution for {column}", fontsize=14)
+        plt.xlabel("Remix Before CT Score", fontsize=12)
+        plt.ylabel("Count", fontsize=12)
+        plt.legend()
+        
+        output_path = os.path.join(output_dir, f"{column}_histogram.png")
+        plt.savefig(output_path)
+        plt.close()
+
+    for column in columns_to_compare:
+        plot_boxplot(df_boxplot, column, output_dir)
+        plot_histogram(hist_data, column, output_dir)
+    
+    print("Boxplots and histograms saved in:", output_dir)
 
 
 # 実行例
 data_csv = '../../dataset/plotdata/dataset/data1.csv'
 remixp_csv = '../../dataset/plotdata/dataset/remixparent_data.csv'
-output_dir = '../../dataset/plotdata/RQ1'
+output_dir = '../../dataset/plotdata/RQ2'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
 # RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
-RQ122_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
+RQ2_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
 
 # 列名を英語に変換
