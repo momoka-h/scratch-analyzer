@@ -661,6 +661,148 @@ def RQ122_U(data_csv, remixp_csv):## U検定
     #     print(f"  Unchanged: {score_changes[column]['Unchanged']}")
     #     print("=" * 50)
 
+def RQ122_boxplot_histgram(data_csv, remixp_csv, output_dir):
+    # データの読み込み
+    data = pd.read_csv(data_csv)
+    remixp_data = pd.read_csv(remixp_csv)
+
+    # 列名を英語に変換
+    data = translate_columns(data, column_translation)
+    remixp_data = translate_columns(remixp_data, column_translation)
+
+    # リミックス元作品のデータを辞書化
+    remixp_dict = remixp_data.set_index("作品ID").to_dict(orient="index")
+
+    # リミックス前、リミックス、リミックス後のデータを分類
+    remix_before = data[data["カテゴリ"] == "リミックス前"]
+    remix = data[data["カテゴリ"] == "リミックス"]
+    remix_after = data[data["カテゴリ"] == "リミックス後"]
+
+    # 比較する項目
+    columns_to_compare = ["Logical thinking", "Flow control", "Synchronization", "Abstraction and problem decomposition", 
+                          "Data Representation", "User Interactivity", "Parallelism", "CT Score"]
+
+    # データリスト
+    boxplot_data = []
+    hist_data = []
+
+    # スコア変化のカウント辞書
+    score_changes = {column: {} for column in columns_to_compare}
+
+    # データをペアリングし、スコア変化を計算
+    for i in range(len(remix_before)):
+        before = remix_before.iloc[i]
+        rem = remix.iloc[i]
+        after = remix_after.iloc[i]
+
+        remix_source_id = rem["リミックス元ID"]
+
+        if pd.notna(remix_source_id) and remix_source_id in remixp_dict:
+            remix_source = remixp_dict[remix_source_id]
+            if before["作者ID"] == rem["作者ID"] == after["作者ID"]:
+                for column in columns_to_compare:
+                    score_before = before[column]
+                    remix_source_score = remix_source[column]
+                    score_after = after[column]
+                    
+                    score_diff = remix_source_score - score_before
+                    change_value = score_after - score_before
+                    
+                    if change_value > 0:
+                        change_type = "Up"
+                    elif change_value < 0:
+                        change_type = "Down"
+                    else:
+                        change_type = "Unchanged"
+                    
+                    if score_before not in score_changes[column]:
+                        score_changes[column][score_before] = {"Up": 0, "Down": 0, "Unchanged": 0}
+                    score_changes[column][score_before][change_type] += 1
+                    
+                    boxplot_data.append({
+                        "Remix Before Score": score_before,
+                        "Score Difference": score_diff,
+                        "Change Type": change_type,
+                        "Column": column
+                    })
+                    
+                    hist_data.append({
+                        "Remix Before Score": score_before,
+                        "Change Type": change_type,
+                        "Column": column
+                    })
+
+    df_boxplot = pd.DataFrame(boxplot_data)
+    df_hist = pd.DataFrame(hist_data)
+
+    palette = {
+        "Up": (0.6, 0.8, 1, 1.0),
+        "Unchanged": (0.8, 0.8, 0.8, 1.0),
+        "Down": (1, 0.6, 0.6, 1.0)
+    }
+
+    def plot_boxplot(df, column, output_dir):
+        plt.figure(figsize=(12, 6))
+        sns.boxplot(
+            data=df[df["Column"] == column], 
+            x="Remix Before Score", 
+            y="Score Difference", 
+            hue="Change Type", 
+            hue_order=["Up", "Unchanged", "Down"],
+            palette=palette,
+            boxprops={"edgecolor": "black"},
+            medianprops={"color": "black"},
+            whiskerprops={"color": "black"},
+            capprops={"color": "black"}
+        )
+        plt.axhline(0, color="black", linestyle="--")
+        plt.title(f"Score Difference: Remix Source - Remix Before ({column})", fontsize=14)
+        plt.xlabel("Remix Before Score", fontsize=12)
+        plt.ylabel("Score Difference (Before - Source)", fontsize=12)
+        
+        os.makedirs(output_dir, exist_ok=True)
+        plt.legend(title="Change Type")
+        output_path = os.path.join(output_dir, f"{column}_boxplot.png")
+        plt.savefig(output_path)
+        plt.close()
+
+    def plot_histogram(score_changes, column, output_dir):
+        scores = sorted(score_changes[column].keys())
+        up_values = [score_changes[column][score]["Up"] for score in scores]
+        unchanged_values = [score_changes[column][score]["Unchanged"] for score in scores]
+        down_values = [score_changes[column][score]["Down"] for score in scores]
+        
+        x = np.arange(len(scores))
+        width = 0.3
+        
+        plt.figure(figsize=(12, 6))
+        plt.bar(x - width, up_values, width=width, label="Up", color=palette["Up"])
+        plt.bar(x, unchanged_values, width=width, label="Unchanged", color=palette["Unchanged"])
+        plt.bar(x + width, down_values, width=width, label="Down", color=palette["Down"])
+        
+        plt.xticks(ticks=x, labels=scores)
+        plt.title(f"Distribution of Score Changes ({column})", fontsize=14)
+        plt.xlabel("Remix Before Score", fontsize=12)
+        plt.ylabel("Count", fontsize=12)
+        plt.legend()
+        
+        output_path = os.path.join(output_dir, f"{column}_histogram.png")
+        plt.savefig(output_path)
+        plt.close()
+
+    for column in columns_to_compare:
+        plot_boxplot(df_boxplot, column, output_dir)
+        plot_histogram(score_changes, column, output_dir)
+    
+    print("Boxplots and histograms saved in:", output_dir)
+
+    for column in columns_to_compare:
+        print(f"Summary for {column}:")
+        for score in sorted(score_changes[column].keys()):
+            print(f"  Score {score}: Up={score_changes[column][score]['Up']}, Down={score_changes[column][score]['Down']}, Unchanged={score_changes[column][score]['Unchanged']}")
+        print("=" * 50)
+
+
 
 # 実行例
 data_csv = '../../dataset/plotdata/dataset/data1.csv'
@@ -669,7 +811,12 @@ output_dir = '../../dataset/plotdata/RQ1'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
 # RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
+RQ122_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
+
+# 列名を英語に変換
+    # data = translate_columns(data, column_translation)
+    # remixp_data = translate_columns(remixp_data, column_translation)
 
 # remix_count, user_count, original_count = analyze_scratch_data(data_csv)
 # print(f"リミックス作品数: {remix_count}")
