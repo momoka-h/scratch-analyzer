@@ -437,7 +437,7 @@ def analyze_scratch_data(csv_file):## データのユーザ数，リミックス
     
     return remix_count, user_count, original_count
 
-def RQ122_T(data_csv, remixp_csv):## T検定
+def RQ_T(data_csv, remixp_csv):## T検定
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -559,7 +559,7 @@ def RQ122_T(data_csv, remixp_csv):## T検定
     #     print(f"  Unchanged: {score_changes[column]['Unchanged']}")
     #     print("=" * 50)
 
-def RQ122_U(data_csv, remixp_csv):## U検定
+def RQ_U(data_csv, remixp_csv):## U検定
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -661,7 +661,7 @@ def RQ122_U(data_csv, remixp_csv):## U検定
     #     print(f"  Unchanged: {score_changes[column]['Unchanged']}")
     #     print("=" * 50)
 
-def RQ122_boxplot_histgram(data_csv, remixp_csv, output_dir):
+def RQ1_2_boxplot_histgram(data_csv, remixp_csv, output_dir):
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -802,7 +802,7 @@ def RQ122_boxplot_histgram(data_csv, remixp_csv, output_dir):
             print(f"  Score {score}: Up={score_changes[column][score]['Up']}, Down={score_changes[column][score]['Down']}, Unchanged={score_changes[column][score]['Unchanged']}")
         print("=" * 50)
 
-def RQ2_boxplot_histgram(data_csv, remixp_csv, output_dir):
+def RQ3_boxplot_histgram(data_csv, remixp_csv, output_dir):
     # データの読み込み
     data = pd.read_csv(data_csv)
     remixp_data = pd.read_csv(remixp_csv)
@@ -924,7 +924,7 @@ output_dir = '../../dataset/plotdata/RQ2'
 rq1data_csv = '../../dataset/plotdata/RQ1/remix_data_complete_pairs.csv'
 # RQ11(data_csv, output_dir)
 # RQ122_boxplot(rq1data_csv, remixp_csv, output_dir)
-RQ2_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
+RQ1_2_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
 # print(f"行数: {count_rows_in_csv(data_csv)}")
 
 # 列名を英語に変換
@@ -937,4 +937,4 @@ RQ2_boxplot_histgram(rq1data_csv, remixp_csv, output_dir)
 # print(f"オリジナル作品数: {original_count}")
 # print(count_rows_in_csv(remixp_csv))
 
-RQ122_U(rq1data_csv, remixp_csv)
+RQ_U(rq1data_csv, remixp_csv)
